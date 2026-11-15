@@ -1,6 +1,17 @@
 # Auto-Login ("Remember Me" for 1 Year) — Oracle APEX
 
-**By Hassaan Ahmed Tahir — Senior Oracle APEX Developer | [Read the full tutorial on ApexCodex](https://apexcodex.blogspot.com/)**
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![Oracle APEX](https://img.shields.io/badge/Oracle%20APEX-Authentication-F80000)
+![PL/SQL](https://img.shields.io/badge/PL%2FSQL-Oracle-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-informational)
+
+> A secure, cookie-based **"Remember Me"** for Oracle APEX: sign in once, stay recognized for a year.
+
+<p align="center">
+  <img src="docs/images/04-auto-login-enabled.png" alt="Auto-Login enabled with confetti celebration" width="760">
+</p>
+
+**By Hassaan Ahmed Tahir — Senior Oracle APEX Developer · [Read the full tutorial](https://apexwithhassaan.vercel.app/blog/auto-login-remember-me)**
 
 A proper **"Remember Me"** checkbox for Oracle APEX — once a user signs in with **Auto-Login** ticked, they're recognized automatically for a whole year, even if their APEX session breaks, the tab is closed, or the browser restarts.
 
@@ -10,24 +21,41 @@ It's built entirely with native APEX and PL/SQL: a `Secure; HttpOnly; SameSite=L
 
 ---
 
-## 📦 What's in this repo
+## ✨ Features
 
-| File | Description |
-|---|---|
-| `prerequisites.sql` | The three auto-login columns, a token index, and the `DBMS_CRYPTO` grant |
-| `pr_autologin.sql` | Runs on the login page (9999) — reads the `WESS_CAMPUS` cookie, validates it against the database, and logs the user in automatically |
-| `pr_logout.sql` | Runs on the login page (9999) after a manual sign-out — clears the DB token, expires the browser cookie, shows a "logged out" message |
-| `pr_set_cookie.sql` | Runs on the home page (1) — writes the 1-year cookie the first time auto-login is enabled, prints the welcome message, fires the confetti |
-| `pr_login_user.sql` | The updated login procedure — new `pi_auto_login` parameter that creates (or clears) the token and its 1-year expiry |
-| `README.md` | This guide — how the pieces fit together and how to wire them up |
+- **1-year "Remember Me"** — users stay recognized even after the session breaks, the tab closes or the browser restarts
+- **Secure cookie** — `Secure; HttpOnly; SameSite=Lax`, holding a 256-bit cryptographically random token
+- **Clean sign-out** — logout clears both the browser cookie and the database token, even after the session has ended
+- **Self-healing** — expired, unknown or revoked cookies are removed automatically
+- **Language-aware** — English / German messages, overlay and cookie expiry
+- **Delightful UX** — a welcome message and confetti once per login
+- **Fully native** — `OWA_COOKIE`, `htp.p` and Before Header processes; no external auth libraries
 
-> ⚠️ **Note:** All four procedures live inside the `ADMI_AUTHENTICATION` package. The files contain the procedure bodies — add each one to your package body (and declare `pr_autologin`, `pr_logout`, `pr_set_cookie` and `Pr_Login_User` in the package spec), adjusting table and column names to your own schema.
+---
+
+## 📁 Repository structure
+
+```
+apex-auto-login-remember-me/
+├── src/
+│   ├── prerequisites.sql         # columns, token index, DBMS_CRYPTO grant
+│   ├── pr_autologin.sql          # login page: auto sign-in from the cookie
+│   ├── pr_logout.sql             # login page: clears the token on sign-out
+│   ├── pr_set_cookie.sql         # home page: writes the 1-year cookie
+│   └── pr_login_user.sql         # login procedure with pi_auto_login
+├── docs/images/                  # screenshots used in this README
+├── CHANGELOG.md
+├── LICENSE                       # MIT
+└── README.md
+```
+
+> ⚠️ **Note:** All four procedures live inside the `ADMI_AUTHENTICATION` package. The files contain the procedure bodies — add each one to your package body (and declare them in the package spec), adjusting table and column names to your own schema.
 
 ---
 
 ## 🚀 Quick install
 
-1. Run [`prerequisites.sql`](./prerequisites.sql) (columns, index, `DBMS_CRYPTO` grant)
+1. Run [`prerequisites.sql`](./src/prerequisites.sql) (columns, index, `DBMS_CRYPTO` grant)
 2. Add `pr_autologin`, `pr_logout` and `pr_set_cookie` to your authentication package, and replace your login procedure with `pr_login_user.sql`
 3. Create the application item `AI_WELCOME_SHOWN`, the login-page items, and set the Post-Logout URL (see [Before You Start](#1-before-you-start))
 4. Create the two Before Header processes on page 9999 and the one on page 1
@@ -58,7 +86,7 @@ The code uses a `SUPER_ADMIN` table with these auto-login columns alongside the 
 | `SUAD_COOKIE` | The 64-character random token stored in the browser cookie |
 | `SUAD_COOKIE_EXPIRE_DATE` | When the token stops being accepted (login date + 365) |
 
-[`prerequisites.sql`](./prerequisites.sql) adds them, plus an index on `SUAD_COOKIE` for a fast lookup. Your parsing schema also needs a **direct** grant on `DBMS_CRYPTO` (run as SYS / ADMIN):
+[`prerequisites.sql`](./src/prerequisites.sql) adds them, plus an index on `SUAD_COOKIE` for a fast lookup. Your parsing schema also needs a **direct** grant on `DBMS_CRYPTO` (run as SYS / ADMIN):
 
 ```sql
 GRANT EXECUTE ON SYS.DBMS_CRYPTO TO your_schema;
@@ -83,7 +111,7 @@ Three procedures go inside `ADMI_AUTHENTICATION` — two run on the login page (
 
 ### 1️⃣ `pr_autologin` — checks for a valid cookie on the login page
 
-[`pr_autologin.sql`](./pr_autologin.sql) runs every time the login page loads. It reads the `WESS_CAMPUS` cookie with `OWA_COOKIE.get` and looks up a matching token in `SUPER_ADMIN` with `SUAD_AUTO_LOGIN_YN = 'REMEMBER'` and an expiry date still in the future. If the account is active and not deleted, it logs the user in with `post_login` and sends them to the home page.
+[`pr_autologin.sql`](./src/pr_autologin.sql) runs every time the login page loads. It reads the `WESS_CAMPUS` cookie with `OWA_COOKIE.get` and looks up a matching token in `SUPER_ADMIN` with `SUAD_AUTO_LOGIN_YN = 'REMEMBER'` and an expiry date still in the future. If the account is active and not deleted, it logs the user in with `post_login` and sends them to the home page.
 
 If the token is unknown or expired, the stale cookie is removed from the browser. If the account has been deactivated or deleted, the token is revoked in the database too — so the normal login page renders either way.
 
@@ -91,11 +119,11 @@ If the token is unknown or expired, the stale cookie is removed from the browser
 
 ### 2️⃣ `pr_logout` — clears the auto-login cookie on manual sign-out
 
-[`pr_logout.sql`](./pr_logout.sql) fires when the user lands on the login page after signing out (`P9999_LOGOUT_YN = YES`). It finds the token **by the browser cookie itself** — so it's cleared even though the APEX session has already ended and `APP_USER` is `nobody` — resets the three auto-login columns, expires the cookie in the browser, resets `P9999_LOGOUT_YN`, prints a language-aware (English / German) "logged out" message, and uses `history.replaceState` to clean the address bar so a refresh can't re-trigger the logout.
+[`pr_logout.sql`](./src/pr_logout.sql) fires when the user lands on the login page after signing out (`P9999_LOGOUT_YN = YES`). It finds the token **by the browser cookie itself** — so it's cleared even though the APEX session has already ended and `APP_USER` is `nobody` — resets the three auto-login columns, expires the cookie in the browser, resets `P9999_LOGOUT_YN`, prints a language-aware (English / German) "logged out" message, and uses `history.replaceState` to clean the address bar so a refresh can't re-trigger the logout.
 
 ### 3️⃣ `pr_set_cookie` — fires on the home page after login
 
-[`pr_set_cookie.sql`](./pr_set_cookie.sql) runs on the **first** home page load of each login (tracked by `AI_WELCOME_SHOWN`, so clicking *Home* again doesn't repeat it) and reacts to the current `SUAD_AUTO_LOGIN_YN` state:
+[`pr_set_cookie.sql`](./src/pr_set_cookie.sql) runs on the **first** home page load of each login (tracked by `AI_WELCOME_SHOWN`, so clicking *Home* again doesn't repeat it) and reacts to the current `SUAD_AUTO_LOGIN_YN` state:
 
 | State | What happens | Overlay |
 |---|---|---|
@@ -132,7 +160,7 @@ That's the entire wiring — three processes, three one-line calls. All the logi
 
 ## 4. Update the Login Procedure to Set the Cookie & Expiry
 
-[`pr_login_user.sql`](./pr_login_user.sql) is the updated `Pr_Login_User` with a new parameter:
+[`pr_login_user.sql`](./src/pr_login_user.sql) is the updated `Pr_Login_User` with a new parameter:
 
 ```sql
 pi_auto_login IN VARCHAR2 DEFAULT NULL
@@ -190,8 +218,49 @@ Manual sign-out
 
 ---
 
-That's the full Auto-Login system — from cookie creation to automatic recognition to clean sign-out — built entirely with native Oracle APEX and PL/SQL. If you add this to your own app, feel free to open an issue and share how it works out!
+## 📸 Screenshots
 
-🙏 **A quick thanks** — a special thanks to my manager, **Sajjad Hanifa**, for his continued guidance and support in exploring and refining these Oracle APEX techniques.
+<p align="center">
+  <img src="docs/images/01-one-time-login.png" alt="Signing in with Auto-Login left unticked" width="760"><br>
+  <em>Signing in with Auto-Login left unticked — a plain one-time login</em>
+</p>
 
-📌 **Stay tuned** — more Oracle APEX features and tutorials are coming. Read the original write-up on [ApexCodex](https://apexcodex.blogspot.com/).
+<p align="center">
+  <img src="docs/images/02-one-time-login-message.png" alt="Success message for a one-time login" width="760"><br>
+  <em>The plain "logged in successfully" message — no cookie, no confetti</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/03-remember-one-year.png" alt="Auto-Login checkbox ticked" width="760"><br>
+  <em>Ticking "Auto-Login" — remembered for a full year on this device</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/04-auto-login-enabled.png" alt="Auto-Login enabled with confetti celebration" width="760"><br>
+  <em>"Auto-Login Enabled!" — confetti confirming the 1-year cookie is set</em>
+</p>
+
+---
+
+That's the full Auto-Login system — from cookie creation to automatic recognition to clean sign-out — built entirely with native Oracle APEX and PL/SQL. If you add it to your own app, feel free to open an issue and share how it works out!
+
+---
+
+## 📝 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the full version history.
+
+---
+
+## 📄 License
+
+Released under the [MIT License](LICENSE) — free to use, modify and redistribute in personal and commercial projects.
+
+---
+
+## 🙏 Credits
+
+Built by **Hassaan Ahmed Tahir** — Senior Oracle APEX Developer.
+Special thanks to **Sajjad Hanifa** for his continued guidance and support in shaping these features and building them right.
+
+📌 Read the full step-by-step write-up on **[APEX with Hassaan](https://apexwithhassaan.vercel.app/blog/auto-login-remember-me)**, and keep an eye on the blog for more Oracle APEX plugins and tutorials.
